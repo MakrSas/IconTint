@@ -1,0 +1,9 @@
+"IconTint" = "IconTint";
+"Rendering" = "Rendering";
+"Off: our rendering, the background is cut out for every icon and edges are smoothed. On: exactly like iOS 18, icons that iOS 18 cannot separate are simply darkened." = "Off: our rendering, the background is cut out for every icon and edges are smoothed. On: exactly like iOS 18, icons that iOS 18 cannot separate are simply darkened.";
+"Original iOS 18 rendering" = "Original iOS 18 rendering";
+"Segmentation engine" = "Segmentation engine";
+"Which code separates the glyph from the background. Open: our own code, same results as iOS 18's. iOS 18: code taken from your iOS 18.6 simulator. Compare the two and pick one." = "Which code separates the glyph from the background. Open: our own code, same results as iOS 18's. iOS 18: code taken from your iOS 18.6 simulator. Compare the two and pick one.";
+"Engine" = "Engine";
+"Open (own code)" = "Open (own code)";
+"iOS 18 (from your simulator)" = "iOS 18 (from your simulator)";

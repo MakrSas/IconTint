@@ -1,0 +1,9 @@
+"IconTint" = "IconTint";
+"Rendering" = "Рендер";
+"Off: our rendering, the background is cut out for every icon and edges are smoothed. On: exactly like iOS 18, icons that iOS 18 cannot separate are simply darkened." = "Выключено — наш рендер: фон вырезается у всех иконок, края сглажены. Включено — ровно как iOS 18: иконки, которые iOS 18 не умеет разделить, просто затемняются.";
+"Original iOS 18 rendering" = "Оригинальный рендер iOS 18";
+"Segmentation engine" = "Движок сегментации";
+"Which code separates the glyph from the background. Open: our own code, same results as iOS 18's. iOS 18: code taken from your iOS 18.6 simulator. Compare the two and pick one." = "Какой код отделяет знак от фона. Открытый — наш собственный код, результат такой же, как у iOS 18. iOS 18 — код из вашего симулятора iOS 18.6. Сравните оба и выберите.";
+"Engine" = "Движок";
+"Open (own code)" = "Открытый (свой код)";
+"iOS 18 (from your simulator)" = "iOS 18 (из вашего симулятора)";
