@@ -1,8 +1,10 @@
 Package: com.makr.icontint
 Name: IconTint
-Version: 1.0
+Version: 1.0.1
 Architecture: iphoneos-arm64
-Description: Dark and Tinted app icons in the iOS 18 style (own rendering engine, no Apple code).
+Description: Dark and Tinted app icons in the iOS 18 style (own rendering engine, no Apple code) [vibe-coded]
+ ⚠️ Vibe-coded: written almost entirely by an AI assistant (Claude); not audited, may crash SpringBoard or cause Safe Mode. Use at your own risk.
+ ⚠️ Вайбкод: написано почти целиком ИИ-ассистентом (Claude), не аудировано, возможны вылеты SpringBoard и Safe Mode. На свой страх и риск.
 Maintainer: makr
 Author: makr
 Section: Tweaks
