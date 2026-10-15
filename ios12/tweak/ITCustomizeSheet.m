@@ -129,8 +129,12 @@ static NSArray *hueTrackColors(void) {
     return img;
 }
 
-// Превью стиля на плитке: мини-иконка в этом стиле
+extern UIImage *ITPreviewIcon(NSInteger style);
+
+// Превью стиля на плитке: иконка «Погоды» (или App Store) в этом стиле; пока рендерится — нарисованная заглушка
 - (UIImage *)previewFor:(ITStyle)s {
+    UIImage *real = ITPreviewIcon(s);
+    if (real) return real;
     CGSize sz = CGSizeMake(60, 60);
     UIGraphicsBeginImageContextWithOptions(sz, YES, 0);
     CGContextRef c = UIGraphicsGetCurrentContext();
@@ -214,6 +218,7 @@ static NSArray *hueTrackColors(void) {
         [_lum addTarget:self action:@selector(slidersChanged) forControlEvents:UIControlEventValueChanged];
         [_lum addTarget:self action:@selector(slidersEnded) forControlEvents:UIControlEventEditingDidEnd];
         [_panel.contentView addSubview:_hue]; [_panel.contentView addSubview:_lum];
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(iconRendered) name:@"ITIconRendered" object:nil];
         [self syncFromSettings];
     }
     return self;
@@ -230,6 +235,9 @@ static NSArray *hueTrackColors(void) {
     CGPoint v = [(UIPanGestureRecognizer *)g velocityInView:self];
     return fabs(v.y) > fabs(v.x);
 }
+
+- (void)dealloc { [[NSNotificationCenter defaultCenter] removeObserver:self]; }
+- (void)iconRendered { [self syncFromSettings]; }
 
 - (BOOL)tinted { return [ITSettings shared].style == ITStyleTinted; }
 

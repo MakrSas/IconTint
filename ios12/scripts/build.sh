@@ -7,7 +7,7 @@ L=../../lift
 OUT="$ROOT/build"; rm -rf "$OUT"; mkdir -p "$OUT"
 CC="xcrun -sdk iphoneos clang -arch arm64 -miphoneos-version-min=12.0 -fobjc-arc -O2 -ffp-contract=off -Wno-unguarded-availability-new -DIT_EDITING"
 LIBS="-framework UIKit -framework Foundation -framework CoreGraphics -framework QuartzCore -framework Accelerate -lz"
-$CC -dynamiclib -I. -I$L Tweak.m ITSettings.m ITIconStore.m ITEditing.m ITCustomizeSheet.m \
+$CC -dynamiclib -I. -I$L Tweak.m ITSettings.m ITIconStore.m ITEditing.m ITCustomizeSheet.m ITIconSize.m \
     $L/ITRender.m $L/isopen.m $L/isopen_math.c $L/isopen_seg.c $L/isopen_comp.c $LIBS \
     -install_name /Library/MobileSubstrate/DynamicLibraries/IconTint.dylib -o "$OUT/IconTint.dylib"
 # Экран настроек (бандл с локализацией en/ru); Preferences.framework приватный — dynamic_lookup

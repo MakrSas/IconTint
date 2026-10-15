@@ -8,6 +8,7 @@
 #import "ITLog.h"
 #import "ITIconStore.h"
 #import "ITEditing.h"
+#import "ITIconSize.h"
 
 // --- Substrate без линковки ---
 static void (*pMSHookMessageEx)(Class, SEL, IMP, IMP *);
@@ -35,6 +36,38 @@ static void hook(Class c, SEL s, IMP imp, IMP *orig) {
 @property (retain, nonatomic) SBIconModel *model;
 @end
 
+// Превью стиля для плитки листа: иконка «Погоды» (в оригинальном рендере iOS 18 — App Store) в нужном стиле (nil — ещё рендерится / не найдена).
+static IMP orig_generateIconImage;
+UIImage *ITPreviewIcon(NSInteger styleValue) {
+    ITStyle style = (ITStyle)styleValue;
+    NSString *previewID = [ITSettings shared].originalRender ? @"com.apple.AppStore" : @"com.apple.weather";
+    SBIconModel *model = (SBIconModel *)[(SBIconController *)[objc_getClass("SBIconController") sharedInstance] model];
+    SBApplicationIcon *icon = nil;
+    for (SBIcon *i in [model leafIcons])
+        if ([i isKindOfClass:objc_getClass("SBApplicationIcon")] && [[(SBApplicationIcon *)i applicationBundleID] isEqualToString:previewID]) { icon = (SBApplicationIcon *)i; break; }
+    if (!icon || !orig_generateIconImage) return nil;
+    UIImage *masked = ((UIImage *(*)(id, SEL, int))orig_generateIconImage)(icon, @selector(generateIconImage:), 2);
+    UIImage *unmasked = [icon getUnmaskedIconImage:2];
+    if (!masked || !unmasked) return nil;
+    if (style == ITStyleLight) return masked;
+    ITStyle real = style == ITStyleAutomatic ? ITStyleDark : style;
+    UIImage *styled = [[ITIconStore shared] styledImageForBundleID:previewID masked:masked unmasked:unmasked style:real];
+    if (!styled) return nil;
+    if (style != ITStyleAutomatic) return styled;
+    // Автоматически: диагональ — светлая слева сверху, тёмная справа снизу
+    CGSize sz = masked.size;
+    UIGraphicsBeginImageContextWithOptions(sz, NO, masked.scale);
+    [masked drawInRect:CGRectMake(0, 0, sz.width, sz.height)];
+    CGContextRef c = UIGraphicsGetCurrentContext();
+    CGContextSaveGState(c);
+    CGContextMoveToPoint(c, sz.width, 0); CGContextAddLineToPoint(c, sz.width, sz.height); CGContextAddLineToPoint(c, 0, sz.height); CGContextClosePath(c);
+    CGContextClip(c);
+    [styled drawInRect:CGRectMake(0, 0, sz.width, sz.height)];
+    CGContextRestoreGState(c);
+    UIImage *out = UIGraphicsGetImageFromCurrentImageContext(); UIGraphicsEndImageContext();
+    return out;
+}
+
 // Перерисовать иконки (все или одного приложения)
 void ITReloadIcons(NSString *onlyBundleID) {
     SBIconModel *model = (SBIconModel *)[(SBIconController *)[objc_getClass("SBIconController") sharedInstance] model];
@@ -46,7 +79,6 @@ void ITReloadIcons(NSString *onlyBundleID) {
 }
 
 // -[SBApplicationIcon generateIconImage:]
-static IMP orig_generateIconImage;
 static UIImage *hook_generateIconImage(SBApplicationIcon *self, SEL _cmd, int format) {
     UIImage *img = ((UIImage *(*)(id, SEL, int))orig_generateIconImage)(self, _cmd, format);
     if (!img || [[ITSettings shared] effectiveStyle] == ITStyleLight) return img;
@@ -71,6 +103,7 @@ static void dumpSources(CFNotificationCenterRef c, void *o, CFStringRef n, const
 static void settingsChanged(CFNotificationCenterRef c, void *o, CFStringRef n, const void *obj, NSDictionary *ui) {
     dispatch_async(dispatch_get_main_queue(), ^{
         [[ITSettings shared] load];
+        ITApplyIconSize(YES);   // Small/Large
         [[ITIconStore shared] purgeMemory];
         ITReloadIcons(nil);
     });
@@ -120,7 +153,10 @@ __attribute__((constructor)) static void IconTintInit(void) {
         void *sub = dlopen("/usr/lib/libsubstrate.dylib", RTLD_LAZY);
         if (sub) pMSHookMessageEx = dlsym(sub, "MSHookMessageEx");
         hook(objc_getClass("SBApplicationIcon"), @selector(generateIconImage:), (IMP)hook_generateIconImage, &orig_generateIconImage);
-        [ITIconStore shared].renderedHandler = ^(NSString *bundleID) { ITReloadIcons(bundleID); };
+        [ITIconStore shared].renderedHandler = ^(NSString *bundleID) {
+            ITReloadIcons(bundleID);
+            [[NSNotificationCenter defaultCenter] postNotificationName:@"ITIconRendered" object:nil];   // лист обновит превью
+        };
         CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)settingsChanged,
                                         CFSTR(IT_NOTIFY_RELOAD), NULL, CFNotificationSuspensionBehaviorDeliverImmediately);
         CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)takeScreenshot,
@@ -132,6 +168,7 @@ __attribute__((constructor)) static void IconTintInit(void) {
         CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, (CFNotificationCallback)dumpSources, CFSTR("com.makr.icontint/dumpsrc"), NULL, CFNotificationSuspensionBehaviorDeliverImmediately);
         [NSTimer scheduledTimerWithTimeInterval:60 repeats:YES block:^(NSTimer *t) { automaticTick(); }];
         ITEditingInstall(hook);
+        ITIconSizeInstall(hook);
         NSLog(@"[IconTint] загружен, стиль %ld", (long)[ITSettings shared].style);
     }
 }

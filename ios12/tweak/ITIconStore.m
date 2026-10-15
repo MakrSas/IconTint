@@ -3,6 +3,9 @@
 #import "ITLog.h"
 #import "ITRender.h"
 #import "islift.h"
+#ifdef IT_TWO_ENGINES
+#import "isswitch.h"
+#endif
 #import <zlib.h>
 
 #define IT_CACHE_DIR @"/var/mobile/Library/Caches/com.makr.icontint"
@@ -21,8 +24,9 @@
 @implementation ITIconStore {
     dispatch_queue_t _queue;
     NSCache *_mem;
+    NSCache *_last;   // последняя собранная картинка по bundle id и размеру — показывается, пока считается новый рендер
     NSMutableSet *_pending;
-    BOOL _engineReady;
+    NSInteger _readyEngine;   // движок, для которого выполнена инициализация (-1 — ни один)
 }
 
 + (instancetype)shared {
@@ -37,7 +41,9 @@
         dispatch_set_target_queue(_queue, dispatch_get_global_queue(QOS_CLASS_UTILITY, 0));
         _mem = [NSCache new];
         _mem.countLimit = 400;
+        _last = [NSCache new]; _last.countLimit = 400;
         _pending = [NSMutableSet set];
+        _readyEngine = -1;
         [[NSFileManager defaultManager] createDirectoryAtPath:IT_CACHE_DIR withIntermediateDirectories:YES attributes:nil error:nil];
     }
     return self;
@@ -59,7 +65,8 @@ static NSData *pixelsOf(UIImage *img, int n) {
 - (NSString *)cachePathFor:(NSString *)bundleID size:(int)n source:(NSData *)src {
     uLong crc = crc32(0, src.bytes, (uInt)src.length);
     BOOL orig = [ITSettings shared].originalRender;
-    return [IT_CACHE_DIR stringByAppendingPathComponent:[NSString stringWithFormat:@"%@_%d_%08lx_v%d%@.bin", bundleID, n, crc, IT_CACHE_VERSION, orig ? @"o" : @""]];
+    // суффикс «e» — результат открытого движка (без суффикса — iOS 18, как в прежних версиях)
+    return [IT_CACHE_DIR stringByAppendingPathComponent:[NSString stringWithFormat:@"%@_%d_%08lx_v%d%@%@.bin", bundleID, n, crc, IT_CACHE_VERSION, orig ? @"o" : @"", [ITSettings shared].engine ? @"" : @"e"]];
 }
 
 - (ITRendered *)loadFile:(NSString *)path size:(int)n {
@@ -74,10 +81,14 @@ static NSData *pixelsOf(UIImage *img, int n) {
 }
 
 - (ITRendered *)renderSource:(NSData *)src size:(int)n {
-    if (!_engineReady) {
+    NSInteger engine = [ITSettings shared].engine;
+#ifdef IT_TWO_ENGINES
+    islift_set_engine((int)engine);
+#endif
+    if (_readyEngine != engine) {
         int missing = islift_init(NULL);
         if (missing < 0) { NSLog(@"[IconTint] islift_init: %d", missing); return nil; }
-        _engineReady = YES;
+        _readyEngine = engine;
     }
     CGColorSpaceRef cs = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
     CGDataProviderRef pr = CGDataProviderCreateWithCFData((__bridge CFDataRef)src);
@@ -86,7 +97,7 @@ static NSData *pixelsOf(UIImage *img, int n) {
     CFAbsoluteTime t = CFAbsoluteTimeGetCurrent();
     if ([ITSettings shared].originalRender) ITRenderIconOriginal(img, n, &res);
     else ITRenderIcon(img, n, &res);
-    NSLog(@"[IconTint] render %dpx: dark=%s tint=%s%s %.0f ms", n, res.darkSegmented ? "iOS 18" : "own", res.tintSegmented ? "iOS 18" : "own", res.fallback ? " fallback" : "", (CFAbsoluteTimeGetCurrent() - t) * 1000);
+    NSLog(@"[IconTint] render %dpx (engine %s): dark=%s tint=%s%s %.0f ms", n, engine ? "iOS 18" : "open", res.darkSegmented ? "segmented" : "own", res.tintSegmented ? "segmented" : "own", res.fallback ? " fallback" : "", (CFAbsoluteTimeGetCurrent() - t) * 1000);
     CGImageRelease(img); CGDataProviderRelease(pr); CGColorSpaceRelease(cs);
     NSMutableData *dark = [NSMutableData dataWithLength:(size_t)n * n * 4], *tint = [NSMutableData dataWithLength:(size_t)n * n];
     uint8_t *dp = dark.mutableBytes, *tp = tint.mutableBytes;
@@ -98,14 +109,16 @@ static NSData *pixelsOf(UIImage *img, int n) {
 }
 
 // Сборка итоговой иконки: фон Dark (градиент системный компонент) + знак, затем форма системной иконки
-- (UIImage *)compose:(ITRendered *)r style:(ITStyle)style masked:(UIImage *)masked {
+- (UIImage *)compose:(ITRendered *)r style:(ITStyle)style masked:(UIImage *)masked scale:(CGFloat)refScale {
     int n = r.size;
     float *bg = malloc(sizeof(float) * n);
-    double scale = masked.scale > 0 ? masked.scale : 2;
+    double scale = refScale > 0 ? refScale : 2;
     ITDarkBackground(n, scale, bg);
     CGFloat tr = 0, tg = 0, tb = 0, ta;
     if (style == ITStyleTinted) [[ITSettings shared].tintColor getRed:&tr green:&tg blue:&tb alpha:&ta];
-    NSData *shape = pixelsOf(masked, n);
+    NSData *shape = masked ? pixelsOf(masked, n) : nil;   // masked == nil: квадратная иконка без маски (для анимации открытия)
+    NSMutableData *opaque = nil;
+    if (!shape) { opaque = [NSMutableData dataWithLength:(size_t)n * n * 4]; memset(opaque.mutableBytes, 255, opaque.length); shape = opaque; }
     const uint8_t *sp = shape.bytes, *dp = r.dark.bytes, *tp = r.tint.bytes;
     NSMutableData *out = [NSMutableData dataWithLength:(size_t)n * n * 4];
     uint8_t *op = out.mutableBytes;
@@ -135,11 +148,15 @@ static NSData *pixelsOf(UIImage *img, int n) {
 }
 
 - (UIImage *)styledImageForBundleID:(NSString *)bundleID masked:(UIImage *)masked unmasked:(UIImage *)unmasked {
-    ITStyle style = [[ITSettings shared] effectiveStyle];
-    if (style == ITStyleLight || !bundleID || !masked || !unmasked) return nil;
-    int n = (int)lround(masked.size.width * masked.scale);
+    return [self styledImageForBundleID:bundleID masked:masked unmasked:unmasked style:[[ITSettings shared] effectiveStyle]];
+}
+
+- (UIImage *)styledImageForBundleID:(NSString *)bundleID masked:(UIImage *)masked unmasked:(UIImage *)unmasked style:(ITStyle)style {
+    if (style == ITStyleLight || style == ITStyleAutomatic || !bundleID || !unmasked) return nil;
+    UIImage *ref = masked ?: unmasked;
+    int n = (int)lround(ref.size.width * ref.scale);
     if (n < 16 || n > 512) return nil;
-    NSString *key = [NSString stringWithFormat:@"%@_%d_%d", bundleID, n, [ITSettings shared].originalRender];
+    NSString *key = [NSString stringWithFormat:@"%@_%d_%d_%ld", bundleID, n, [ITSettings shared].originalRender, (long)[ITSettings shared].engine];
     ITRendered *r = [_mem objectForKey:key];
     if (!r) {
         NSData *src = pixelsOf(unmasked, n);
@@ -154,7 +171,8 @@ static NSData *pixelsOf(UIImage *img, int n) {
         r = [self loadFile:path size:n];
         if (r) [_mem setObject:r forKey:key];
         else {
-            @synchronized (_pending) { if ([_pending containsObject:key]) return nil; [_pending addObject:key]; }
+            UIImage *prev = [_last objectForKey:[NSString stringWithFormat:@"%@_%d_%d", bundleID, n, masked ? 1 : 0]];
+            @synchronized (_pending) { if ([_pending containsObject:key]) return prev; [_pending addObject:key]; }
             dispatch_async(_queue, ^{
                 ITRendered *nr = [self renderSource:src size:n];
                 if (nr) {
@@ -166,10 +184,12 @@ static NSData *pixelsOf(UIImage *img, int n) {
                 @synchronized (self->_pending) { [self->_pending removeObject:key]; }
                 dispatch_async(dispatch_get_main_queue(), ^{ if (nr && self.renderedHandler) self.renderedHandler(bundleID); });
             });
-            return nil;
+            return prev;
         }
     }
-    return [self compose:r style:style masked:masked];
+    UIImage *out = [self compose:r style:style masked:masked scale:ref.scale];
+    if (out) [_last setObject:out forKey:[NSString stringWithFormat:@"%@_%d_%d", bundleID, n, masked ? 1 : 0]];
+    return out;
 }
 
 @end
