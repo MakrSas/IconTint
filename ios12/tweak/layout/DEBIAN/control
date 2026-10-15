@@ -1,0 +1,9 @@
+Package: com.makr.icontint
+Name: IconTint
+Version: 1.0
+Architecture: iphoneos-arm
+Description: Dark and Tinted app icons in the iOS 18 style for iOS 12 (own rendering engine, no Apple code).
+Maintainer: makr
+Author: makr
+Section: Tweaks
+Depends: mobilesubstrate, preferenceloader, firmware (>= 12.0), firmware (<< 15.0)

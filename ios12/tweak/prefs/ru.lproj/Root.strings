@@ -1,0 +1,6 @@
+"IconTint" = "IconTint";
+"Rendering" = "Рендер";
+"Off: our rendering, the background is cut out for every icon and edges are smoothed. On: exactly like iOS 18, icons that iOS 18 cannot separate are simply darkened." = "Выключено — наш рендер: фон вырезается у всех иконок, края сглажены. Включено — ровно как iOS 18: иконки, которые iOS 18 не умеет разделить, просто затемняются.";
+"Original iOS 18 rendering" = "Оригинальный рендер iOS 18";
+"Home screen" = "Рабочий стол";
+"Edit by long press on empty space" = "Правка по удержанию пустого места";

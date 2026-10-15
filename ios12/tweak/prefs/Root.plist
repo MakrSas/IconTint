@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//iOS 18//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>items</key>
+	<array>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>footerText</key>
+			<string>Off: our rendering, the background is cut out for every icon and edges are smoothed. On: exactly like iOS 18, icons that iOS 18 cannot separate are simply darkened.</string>
+			<key>label</key>
+			<string>Rendering</string>
+		</dict>
+		<dict>
+			<key>PostNotification</key>
+			<string>com.makr.icontint/reload</string>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.makr.icontint</string>
+			<key>key</key>
+			<string>originalRender</string>
+			<key>label</key>
+			<string>Original iOS 18 rendering</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>Home screen</string>
+		</dict>
+		<dict>
+			<key>PostNotification</key>
+			<string>com.makr.icontint/reload</string>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.makr.icontint</string>
+			<key>key</key>
+			<string>emptyAreaLongPress</string>
+			<key>label</key>
+			<string>Edit by long press on empty space</string>
+		</dict>
+	</array>
+	<key>stringsTable</key>
+	<string>Root</string>
+	<key>title</key>
+	<string>IconTint</string>
+</dict>
+</plist>
